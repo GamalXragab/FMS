@@ -71,38 +71,58 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
   // Fetch all dropdowns and formulas on open
   useEffect(() => {
     if (!isOpen) return;
+    loadAllData();
+  }, [isOpen]);
+
+  const loadAllData = async () => {
     setLoading(true);
     setError(null);
     
-    // Get token from localStorage to ensure we're authenticated
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setError('Authentication required. Please log in again.');
+    try {
+      // Get token from localStorage to ensure we're authenticated
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication required. Please log in again.');
+        setLoading(false);
+        return;
+      }
+      
+      // Load all data in parallel
+      const results = await Promise.allSettled([
+        cabinetService.getDropdown('part-types'),
+        cabinetService.getDropdown('material-types'),
+        cabinetService.getDropdown('material-thicknesses'),
+        cabinetService.getDropdown('edge-thicknesses'),
+        cabinetService.getDropdown('edge-types'),
+        cabinetService.getDropdown('accessories'),
+        cabinetService.getFormulas(),
+      ]);
+      
+      // Process results and handle any errors
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          switch (index) {
+            case 0: setPartTypes(result.value); break;
+            case 1: setMaterialTypes(result.value); break;
+            case 2: setMaterialThicknesses(result.value); break;
+            case 3: setEdgeThicknesses(result.value); break;
+            case 4: setEdgeTypes(result.value); break;
+            case 5: setAccessories(result.value); break;
+            case 6: setFormulas(result.value); break;
+          }
+        } else {
+          console.error(`Failed to load data for index ${index}:`, result.reason);
+          const sectionName = index < 6 ? sections[index].label : 'Formulas';
+          setError(`Failed to load ${sectionName}: ${result.reason.message || 'Unknown error'}`);
+        }
+      });
+    } catch (e: any) {
+      setError(e.message || 'Failed to load data');
+      console.error('Error loading data:', e);
+    } finally {
       setLoading(false);
-      return;
     }
-    
-    Promise.all([
-      cabinetService.getDropdown('part-types'),
-      cabinetService.getDropdown('material-types'),
-      cabinetService.getDropdown('material-thicknesses'),
-      cabinetService.getDropdown('edge-thicknesses'),
-      cabinetService.getDropdown('edge-types'),
-      cabinetService.getDropdown('accessories'),
-      cabinetService.getFormulas(),
-    ])
-      .then(([pt, mt, mth, eth, et, acc, formulas]) => {
-        setPartTypes(pt);
-        setMaterialTypes(mt);
-        setMaterialThicknesses(mth);
-        setEdgeThicknesses(eth);
-        setEdgeTypes(et);
-        setAccessories(acc);
-        setFormulas(formulas);
-      })
-      .catch(e => setError(e.message || 'Failed to load data'))
-      .finally(() => setLoading(false));
-  }, [isOpen]);
+  };
 
   const getValues = () => {
     switch (activeSection) {
@@ -116,6 +136,7 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
       default: return [];
     }
   };
+  
   const setValues = (values: string[]) => {
     switch (activeSection) {
       case 'partTypes': setPartTypes(values); break;
@@ -135,8 +156,14 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
       setLoading(true);
       setError(null);
       try {
-        await cabinetService.addDropdown(activeSection as any, inputValue.trim());
-        const updated = await cabinetService.getDropdown(activeSection as any);
+        const type = activeSection === 'partTypes' ? 'part-types' : 
+                    activeSection === 'materialTypes' ? 'material-types' :
+                    activeSection === 'materialThicknesses' ? 'material-thicknesses' :
+                    activeSection === 'edgeThicknesses' ? 'edge-thicknesses' :
+                    activeSection === 'edgeTypes' ? 'edge-types' : 'accessories';
+                    
+        await cabinetService.addDropdown(type as any, inputValue.trim());
+        const updated = await cabinetService.getDropdown(type as any);
         setValues(updated);
         setInputValue('');
       } catch (e: any) {
@@ -146,20 +173,27 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
       }
     }
   };
+  
   const handleEdit = (idx: number) => {
     setEditIndex(idx);
     setInputValue(getValues()[idx]);
   };
+  
   const handleSaveEdit = async () => {
     if (editIndex !== null && inputValue.trim()) {
       setLoading(true);
       setError(null);
       try {
-        const current = getValues();
+        const type = activeSection === 'partTypes' ? 'part-types' : 
+                    activeSection === 'materialTypes' ? 'material-types' :
+                    activeSection === 'materialThicknesses' ? 'material-thicknesses' :
+                    activeSection === 'edgeThicknesses' ? 'edge-thicknesses' :
+                    activeSection === 'edgeTypes' ? 'edge-types' : 'accessories';
+                    
         // Assume backend returns array of objects with id and value, so we need to map
         const id = editIndex; // You may need to adjust this if your backend returns ids
-        await cabinetService.updateDropdown(activeSection as any, id, inputValue.trim());
-        const updated = await cabinetService.getDropdown(activeSection as any);
+        await cabinetService.updateDropdown(type as any, id, inputValue.trim());
+        const updated = await cabinetService.getDropdown(type as any);
         setValues(updated);
         setEditIndex(null);
         setInputValue('');
@@ -170,13 +204,20 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
       }
     }
   };
+  
   const handleDelete = async (idx: number) => {
     setLoading(true);
     setError(null);
     try {
+      const type = activeSection === 'partTypes' ? 'part-types' : 
+                  activeSection === 'materialTypes' ? 'material-types' :
+                  activeSection === 'materialThicknesses' ? 'material-thicknesses' :
+                  activeSection === 'edgeThicknesses' ? 'edge-thicknesses' :
+                  activeSection === 'edgeTypes' ? 'edge-types' : 'accessories';
+                  
       const id = idx; // You may need to adjust this if your backend returns ids
-      await cabinetService.deleteDropdown(activeSection as any, id);
-      const updated = await cabinetService.getDropdown(activeSection as any);
+      await cabinetService.deleteDropdown(type as any, id);
+      const updated = await cabinetService.getDropdown(type as any);
       setValues(updated);
       if (editIndex === idx) {
         setEditIndex(null);
@@ -195,10 +236,19 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
       setLoading(true);
       setError(null);
       try {
-        await cabinetService.addFormula({ name: formulaName.trim(), formulaH: formulaH.trim(), formulaW: formulaW.trim(), partTypes: formulaPartTypes });
+        await cabinetService.addFormula({ 
+          name: formulaName.trim(), 
+          formulaH: formulaH.trim(), 
+          formulaW: formulaW.trim(), 
+          partTypes: formulaPartTypes 
+        });
         const updated = await cabinetService.getFormulas();
         setFormulas(updated);
-        setFormulaName(''); setFormulaH(''); setFormulaW(''); setFormulaPartTypes([]); setFormulaEditIndex(null);
+        setFormulaName(''); 
+        setFormulaH(''); 
+        setFormulaW(''); 
+        setFormulaPartTypes([]); 
+        setFormulaEditIndex(null);
       } catch (e: any) {
         setError(e.message || 'Failed to add formula');
       } finally {
@@ -206,6 +256,7 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
       }
     }
   };
+  
   const handleEditFormula = (idx: number) => {
     setFormulaEditIndex(idx);
     const f = formulas[idx];
@@ -214,17 +265,26 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
     setFormulaW(f.formulaW);
     setFormulaPartTypes(f.partTypes);
   };
+  
   const handleSaveEditFormula = async () => {
     if (formulaEditIndex !== null && formulaName.trim() && formulaH.trim() && formulaW.trim() && formulaPartTypes.length > 0) {
       setLoading(true);
       setError(null);
       try {
         const id = formulas[formulaEditIndex]?.id;
-        await cabinetService.updateFormula(id, { name: formulaName.trim(), formulaH: formulaH.trim(), formulaW: formulaW.trim(), partTypes: formulaPartTypes });
+        await cabinetService.updateFormula(id, { 
+          name: formulaName.trim(), 
+          formulaH: formulaH.trim(), 
+          formulaW: formulaW.trim(), 
+          partTypes: formulaPartTypes 
+        });
         const updated = await cabinetService.getFormulas();
         setFormulas(updated);
         setFormulaEditIndex(null);
-        setFormulaName(''); setFormulaH(''); setFormulaW(''); setFormulaPartTypes([]);
+        setFormulaName(''); 
+        setFormulaH(''); 
+        setFormulaW(''); 
+        setFormulaPartTypes([]);
       } catch (e: any) {
         setError(e.message || 'Failed to edit formula');
       } finally {
@@ -232,6 +292,7 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
       }
     }
   };
+  
   const handleDeleteFormula = async (idx: number) => {
     setLoading(true);
     setError(null);
@@ -241,7 +302,10 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
       const updated = await cabinetService.getFormulas();
       setFormulas(updated);
       setFormulaEditIndex(null);
-      setFormulaName(''); setFormulaH(''); setFormulaW(''); setFormulaPartTypes([]);
+      setFormulaName(''); 
+      setFormulaH(''); 
+      setFormulaW(''); 
+      setFormulaPartTypes([]);
     } catch (e: any) {
       setError(e.message || 'Failed to delete formula');
     } finally {
@@ -262,7 +326,16 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
             {sections.map((section) => (
               <button
                 key={section.key}
-                onClick={() => { setActiveSection(section.key); setEditIndex(null); setInputValue(''); setFormulaEditIndex(null); setFormulaName(''); setFormulaH(''); setFormulaW(''); setFormulaPartTypes([]); }}
+                onClick={() => { 
+                  setActiveSection(section.key); 
+                  setEditIndex(null); 
+                  setInputValue(''); 
+                  setFormulaEditIndex(null); 
+                  setFormulaName(''); 
+                  setFormulaH(''); 
+                  setFormulaW(''); 
+                  setFormulaPartTypes([]); 
+                }}
                 className={`px-3 py-1 rounded ${activeSection === section.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
                 {section.label}
@@ -277,7 +350,7 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
           </div>
         )}
         
-        <div className="mb-4">
+        <div className="mb-4 max-h-[50vh] overflow-y-auto">
           {activeSection !== 'formulas' ? (
             <ul className="space-y-2">
               {getValues().map((val, idx) => (
@@ -285,14 +358,16 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
                   {editIndex === idx ? (
                     <>
                       <input
-                        className="border rounded px-2 py-1 mr-2"
+                        className="border rounded px-2 py-1 mr-2 flex-1"
                         value={inputValue}
                         onChange={e => setInputValue(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleSaveEdit()}
                         autoFocus
                       />
-                      <button onClick={handleSaveEdit} className="text-blue-600 px-2">Save</button>
-                      <button onClick={() => { setEditIndex(null); setInputValue(''); }} className="text-gray-500 px-2">Cancel</button>
+                      <div className="flex space-x-2">
+                        <button onClick={handleSaveEdit} className="text-blue-600 px-2">Save</button>
+                        <button onClick={() => { setEditIndex(null); setInputValue(''); }} className="text-gray-500 px-2">Cancel</button>
+                      </div>
                     </>
                   ) : (
                     <>
@@ -363,11 +438,34 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
               </div>
               <div className="flex space-x-2">
                 {formulaEditIndex === null ? (
-                  <button onClick={handleAddFormula} className="bg-blue-600 text-white px-3 py-1 rounded">Add Formula</button>
+                  <button 
+                    onClick={handleAddFormula} 
+                    className="bg-blue-600 text-white px-3 py-1 rounded"
+                    disabled={!formulaName || !formulaH || !formulaW || formulaPartTypes.length === 0}
+                  >
+                    Add Formula
+                  </button>
                 ) : (
                   <>
-                    <button onClick={handleSaveEditFormula} className="bg-blue-600 text-white px-3 py-1 rounded">Save</button>
-                    <button onClick={() => { setFormulaEditIndex(null); setFormulaName(''); setFormulaH(''); setFormulaW(''); setFormulaPartTypes([]); }} className="bg-gray-300 text-gray-700 px-3 py-1 rounded">Cancel</button>
+                    <button 
+                      onClick={handleSaveEditFormula} 
+                      className="bg-blue-600 text-white px-3 py-1 rounded"
+                      disabled={!formulaName || !formulaH || !formulaW || formulaPartTypes.length === 0}
+                    >
+                      Save
+                    </button>
+                    <button 
+                      onClick={() => { 
+                        setFormulaEditIndex(null); 
+                        setFormulaName(''); 
+                        setFormulaH(''); 
+                        setFormulaW(''); 
+                        setFormulaPartTypes([]); 
+                      }} 
+                      className="bg-gray-300 text-gray-700 px-3 py-1 rounded"
+                    >
+                      Cancel
+                    </button>
                   </>
                 )}
               </div>
@@ -385,7 +483,13 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
               onKeyDown={e => e.key === 'Enter' && (editIndex === null ? handleAdd() : handleSaveEdit())}
             />
             {editIndex === null ? (
-              <button onClick={handleAdd} className="bg-blue-600 text-white px-3 py-1 rounded">Add</button>
+              <button 
+                onClick={handleAdd} 
+                className="bg-blue-600 text-white px-3 py-1 rounded"
+                disabled={!inputValue.trim()}
+              >
+                Add
+              </button>
             ) : null}
           </div>
         )}
