@@ -12,43 +12,111 @@ async function fetchJson(url: string, options?: RequestInit) {
   // Get the auth token from localStorage
   const token = localStorage.getItem('token');
   
+  if (!token) {
+    throw new Error('Authentication required. Please log in again.');
+  }
+  
   // Create headers with auth token
   const headers = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`
   };
   
-  const res = await fetch(url, { 
-    headers, 
-    credentials: 'include', 
-    ...options,
-    // Merge headers if options already has headers
-    headers: {
-      ...headers,
-      ...(options?.headers || {})
+  try {
+    const res = await fetch(url, { 
+      headers, 
+      credentials: 'include', 
+      ...options,
+      // Merge headers if options already has headers
+      headers: {
+        ...headers,
+        ...(options?.headers || {})
+      }
+    });
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      try {
+        const errorJson = JSON.parse(errorText);
+        throw new Error(errorJson.error || 'Request failed');
+      } catch (e) {
+        throw new Error(errorText || `HTTP error ${res.status}`);
+      }
     }
-  });
-  
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText);
+    
+    return res.json();
+  } catch (error) {
+    console.error('API request failed:', error);
+    throw error;
   }
-  
-  return res.json();
 }
 
 // Generic CRUD for dropdowns
 type DropdownType = 'part-types' | 'material-types' | 'material-thicknesses' | 'edge-thicknesses' | 'edge-types' | 'accessories';
 
 export const cabinetService = {
-  getDropdown: (type: DropdownType) => fetchJson(`${API}/${type}`),
-  addDropdown: (type: DropdownType, value: string) => fetchJson(`${API}/${type}`, { method: 'POST', body: JSON.stringify({ name: value }) }),
-  updateDropdown: (type: DropdownType, id: number, value: string) => fetchJson(`${API}/${type}/${id}`, { method: 'PUT', body: JSON.stringify({ name: value }) }),
-  deleteDropdown: (type: DropdownType, id: number) => fetchJson(`${API}/${type}/${id}`, { method: 'DELETE' }),
+  // Get all items of a dropdown type
+  getDropdown: async (type: DropdownType): Promise<string[]> => {
+    try {
+      const data = await fetchJson(`${API}/${type}`);
+      // Map the response to get just the names/values
+      return Array.isArray(data) ? data.map(item => item.name || item.value) : [];
+    } catch (error) {
+      console.error(`Error fetching ${type}:`, error);
+      throw error;
+    }
+  },
+  
+  // Add a new item to a dropdown
+  addDropdown: async (type: DropdownType, value: string) => {
+    const payload = type.includes('thickness') ? { value } : { name: value };
+    return fetchJson(`${API}/${type}`, { 
+      method: 'POST', 
+      body: JSON.stringify(payload) 
+    });
+  },
+  
+  // Update an existing dropdown item
+  updateDropdown: async (type: DropdownType, id: number, value: string) => {
+    const payload = type.includes('thickness') ? { value } : { name: value };
+    return fetchJson(`${API}/${type}/${id}`, { 
+      method: 'PUT', 
+      body: JSON.stringify(payload) 
+    });
+  },
+  
+  // Delete a dropdown item
+  deleteDropdown: async (type: DropdownType, id: number) => {
+    return fetchJson(`${API}/${type}/${id}`, { method: 'DELETE' });
+  },
 
   // Formulas
-  getFormulas: () => fetchJson(`${API}/formulas`),
-  addFormula: (formula: Formula) => fetchJson(`${API}/formulas`, { method: 'POST', body: JSON.stringify(formula) }),
-  updateFormula: (id: number, formula: Formula) => fetchJson(`${API}/formulas/${id}`, { method: 'PUT', body: JSON.stringify(formula) }),
-  deleteFormula: (id: number) => fetchJson(`${API}/formulas/${id}`, { method: 'DELETE' }),
+  getFormulas: async (): Promise<Formula[]> => {
+    try {
+      const data = await fetchJson(`${API}/formulas`);
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Error fetching formulas:', error);
+      return [];
+    }
+  },
+  
+  addFormula: (formula: Formula) => 
+    fetchJson(`${API}/formulas`, { 
+      method: 'POST', 
+      body: JSON.stringify(formula) 
+    }),
+    
+  updateFormula: (id: number | undefined, formula: Formula) => {
+    if (!id) throw new Error('Formula ID is required for updates');
+    return fetchJson(`${API}/formulas/${id}`, { 
+      method: 'PUT', 
+      body: JSON.stringify(formula) 
+    });
+  },
+  
+  deleteFormula: (id: number | undefined) => {
+    if (!id) throw new Error('Formula ID is required for deletion');
+    return fetchJson(`${API}/formulas/${id}`, { method: 'DELETE' });
+  },
 };
