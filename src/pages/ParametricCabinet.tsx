@@ -20,6 +20,13 @@ interface CabinetPart {
   heightFormula: string;
 }
 
+interface Formula {
+  id: number;
+  name: string;
+  formula: string;
+  description?: string;
+}
+
 const ParametricCabinet: React.FC = () => {
   const [cabinetParts, setCabinetParts] = useState<CabinetPart[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -31,6 +38,8 @@ const ParametricCabinet: React.FC = () => {
   const [materialThicknesses, setMaterialThicknesses] = useState<string[]>(['12mm', '16mm', '18mm', '25mm']);
   const [edgeThicknesses, setEdgeThicknesses] = useState<string[]>(['0.5mm', '1mm', '2mm']);
   const [accessories, setAccessories] = useState<string[]>(['Hinges', 'Drawer Slides', 'Handles', 'Shelf Pins']);
+  const [edgeTypes, setEdgeTypes] = useState<string[]>(['PVC', 'ABS', 'Wood Veneer', 'Melamine']);
+  const [formulas, setFormulas] = useState<Formula[]>([]);
 
   const handleAddPart = () => {
     setShowAddModal(true);
@@ -218,9 +227,13 @@ const ParametricCabinet: React.FC = () => {
         setEdgeThicknesses={setEdgeThicknesses}
         accessories={accessories}
         setAccessories={setAccessories}
+        edgeTypes={edgeTypes}
+        setEdgeTypes={setEdgeTypes}
+        formulas={formulas}
+        setFormulas={setFormulas}
       />
     </div>
   );
 };
 
-export default ParametricCabinet; 
+export default ParametricCabinet;
