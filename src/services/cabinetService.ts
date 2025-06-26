@@ -54,6 +54,16 @@ async function fetchJson(url: string, options?: RequestInit) {
 // Generic CRUD for dropdowns
 type DropdownType = 'part-types' | 'material-types' | 'material-thicknesses' | 'edge-thicknesses' | 'edge-types' | 'accessories';
 
+// Helper function to determine the correct payload structure for each dropdown type
+function getDropdownPayload(type: DropdownType, value: string) {
+  // These types use 'value' property
+  if (type === 'material-thicknesses' || type === 'edge-thicknesses' || type === 'edge-types') {
+    return { value };
+  }
+  // These types use 'name' property
+  return { name: value };
+}
+
 export const cabinetService = {
   // Get all items of a dropdown type
   getDropdown: async (type: DropdownType): Promise<string[]> => {
@@ -69,7 +79,7 @@ export const cabinetService = {
   
   // Add a new item to a dropdown
   addDropdown: async (type: DropdownType, value: string) => {
-    const payload = type.includes('thickness') ? { value } : { name: value };
+    const payload = getDropdownPayload(type, value);
     return fetchJson(`${API}/${type}`, { 
       method: 'POST', 
       body: JSON.stringify(payload) 
@@ -78,7 +88,7 @@ export const cabinetService = {
   
   // Update an existing dropdown item
   updateDropdown: async (type: DropdownType, id: number, value: string) => {
-    const payload = type.includes('thickness') ? { value } : { name: value };
+    const payload = getDropdownPayload(type, value);
     return fetchJson(`${API}/${type}/${id}`, { 
       method: 'PUT', 
       body: JSON.stringify(payload) 
