@@ -73,6 +73,15 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
     if (!isOpen) return;
     setLoading(true);
     setError(null);
+    
+    // Get token from localStorage to ensure we're authenticated
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Authentication required. Please log in again.');
+      setLoading(false);
+      return;
+    }
+    
     Promise.all([
       cabinetService.getDropdown('part-types'),
       cabinetService.getDropdown('material-types'),
@@ -244,19 +253,30 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
+      <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold mb-4">Cabinet Dropdown Settings</h2>
-        <div className="flex space-x-2 mb-4">
-          {sections.map((section) => (
-            <button
-              key={section.key}
-              onClick={() => { setActiveSection(section.key); setEditIndex(null); setInputValue(''); setFormulaEditIndex(null); setFormulaName(''); setFormulaH(''); setFormulaW(''); setFormulaPartTypes([]); }}
-              className={`px-3 py-1 rounded ${activeSection === section.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-            >
-              {section.label}
-            </button>
-          ))}
+        
+        {/* Section tabs - scrollable container */}
+        <div className="mb-4 overflow-x-auto">
+          <div className="flex space-x-2 min-w-max">
+            {sections.map((section) => (
+              <button
+                key={section.key}
+                onClick={() => { setActiveSection(section.key); setEditIndex(null); setInputValue(''); setFormulaEditIndex(null); setFormulaName(''); setFormulaH(''); setFormulaW(''); setFormulaPartTypes([]); }}
+                className={`px-3 py-1 rounded ${activeSection === section.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                {section.label}
+              </button>
+            ))}
+          </div>
         </div>
+        
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+        )}
+        
         <div className="mb-4">
           {activeSection !== 'formulas' ? (
             <ul className="space-y-2">
@@ -295,7 +315,7 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
                       <div>
                         <span className="font-semibold">{f.name}</span> &nbsp;
                         <span className="text-xs text-gray-500">[H: {f.formulaH}, W: {f.formulaW}]</span>
-                        <span className="ml-2 text-xs text-gray-400">Linked: {f.partTypes.join(', ')}</span>
+                        <div className="text-xs text-gray-400">Linked: {f.partTypes.join(', ')}</div>
                       </div>
                       <div>
                         <button onClick={() => handleEditFormula(idx)} className="text-blue-600 px-2">Edit</button>
@@ -307,31 +327,34 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
               </ul>
               <div className="mb-2">
                 <input
-                  className="border rounded px-2 py-1 mr-2"
+                  className="border rounded px-2 py-1 mr-2 w-full mb-2"
                   value={formulaName}
                   onChange={e => setFormulaName(e.target.value)}
                   placeholder="Formula Name"
                 />
-                <input
-                  className="border rounded px-2 py-1 mr-2"
-                  value={formulaH}
-                  onChange={e => setFormulaH(e.target.value)}
-                  placeholder="Formula for H"
-                />
-                <input
-                  className="border rounded px-2 py-1 mr-2"
-                  value={formulaW}
-                  onChange={e => setFormulaW(e.target.value)}
-                  placeholder="Formula for W"
-                />
+                <div className="flex gap-2 mb-2">
+                  <input
+                    className="border rounded px-2 py-1 flex-1"
+                    value={formulaH}
+                    onChange={e => setFormulaH(e.target.value)}
+                    placeholder="Formula for H"
+                  />
+                  <input
+                    className="border rounded px-2 py-1 flex-1"
+                    value={formulaW}
+                    onChange={e => setFormulaW(e.target.value)}
+                    placeholder="Formula for W"
+                  />
+                </div>
               </div>
               <div className="mb-2">
-                <span className="mr-2">Linked Part Types:</span>
+                <label className="block mb-1">Linked Part Types:</label>
                 <select
                   multiple
-                  className="border rounded px-2 py-1"
+                  className="border rounded px-2 py-1 w-full"
                   value={formulaPartTypes}
                   onChange={e => setFormulaPartTypes(Array.from(e.target.selectedOptions, o => o.value))}
+                  size={3}
                 >
                   {partTypes.map(pt => (
                     <option key={pt} value={pt}>{pt}</option>
@@ -351,18 +374,22 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
             </>
           )}
         </div>
-        <div className="flex items-center space-x-2 mb-6">
-          <input
-            className="border rounded px-2 py-1 flex-1"
-            value={inputValue}
-            onChange={e => setInputValue(e.target.value)}
-            placeholder={`Add new ${sections.find(s => s.key === activeSection)?.label.toLowerCase()}`}
-            onKeyDown={e => e.key === 'Enter' && (editIndex === null ? handleAdd() : handleSaveEdit())}
-          />
-          {editIndex === null ? (
-            <button onClick={handleAdd} className="bg-blue-600 text-white px-3 py-1 rounded">Add</button>
-          ) : null}
-        </div>
+        
+        {activeSection !== 'formulas' && (
+          <div className="flex items-center space-x-2 mb-6">
+            <input
+              className="border rounded px-2 py-1 flex-1"
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              placeholder={`Add new ${sections.find(s => s.key === activeSection)?.label.toLowerCase()}`}
+              onKeyDown={e => e.key === 'Enter' && (editIndex === null ? handleAdd() : handleSaveEdit())}
+            />
+            {editIndex === null ? (
+              <button onClick={handleAdd} className="bg-blue-600 text-white px-3 py-1 rounded">Add</button>
+            ) : null}
+          </div>
+        )}
+        
         <div className="flex justify-end">
           <button
             onClick={onClose}
@@ -371,11 +398,11 @@ const CabinetDropdownSettingsModal: React.FC<CabinetDropdownSettingsModalProps> 
             Close
           </button>
         </div>
-        {loading && <div className="text-blue-600 mb-2">Loading...</div>}
-        {error && <div className="text-red-600 mb-2">{error}</div>}
+        
+        {loading && <div className="text-blue-600 mt-2">Loading...</div>}
       </div>
     </div>
   );
 };
 
-export default CabinetDropdownSettingsModal; 
+export default CabinetDropdownSettingsModal;
