@@ -77,7 +77,9 @@ export const createCabinetSchema = async () => {
     CREATE TABLE IF NOT EXISTS cabinet_formulas (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
-      formula TEXT NOT NULL,
+      formulaH TEXT NOT NULL,
+      formulaW TEXT NOT NULL,
+      part_types TEXT,
       description TEXT
     )
   `);
