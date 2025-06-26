@@ -57,10 +57,10 @@ type DropdownType = 'part-types' | 'material-types' | 'material-thicknesses' | '
 // Helper function to determine the correct payload structure for each dropdown type
 function getDropdownPayload(type: DropdownType, value: string) {
   // These types use 'value' property
-  if (type === 'material-thicknesses' || type === 'edge-thicknesses' || type === 'edge-types') {
+  if (type === 'material-thicknesses' || type === 'edge-thicknesses') {
     return { value };
   }
-  // These types use 'name' property
+  // These types use 'name' property (including edge-types)
   return { name: value };
 }
 
