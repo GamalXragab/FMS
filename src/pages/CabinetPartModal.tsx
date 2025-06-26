@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { cabinetService, Formula as FormulaType } from '../services/cabinetService';
 
 interface CabinetPartModalProps {
   isOpen: boolean;
@@ -33,6 +34,16 @@ const CabinetPartModal: React.FC<CabinetPartModalProps> = ({
   const [edgeBanding, setEdgeBanding] = useState(defaultEdgeBanding);
   const [widthFormula, setWidthFormula] = useState('');
   const [heightFormula, setHeightFormula] = useState('');
+  const [formulas, setFormulas] = useState<FormulaType[]>([]);
+  const [selectedFormula, setSelectedFormula] = useState('');
+  const [filteredFormulas, setFilteredFormulas] = useState<FormulaType[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadFormulas();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (initialValues) {
@@ -53,25 +64,45 @@ const CabinetPartModal: React.FC<CabinetPartModalProps> = ({
       setEdgeBanding(defaultEdgeBanding);
       setWidthFormula('');
       setHeightFormula('');
+      setSelectedFormula('');
     }
   }, [initialValues, isOpen]);
 
-  // Simulate auto-loading formulas based on part type
+  // Load formulas from the server
+  const loadFormulas = async () => {
+    try {
+      setLoading(true);
+      const formulasData = await cabinetService.getFormulas();
+      setFormulas(formulasData);
+    } catch (error) {
+      console.error('Error loading formulas:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filter formulas based on selected part type
   useEffect(() => {
-    if (!initialValues && partType) {
-      // Example: load default formulas for demo
-      if (partType === 'Side Panel') {
-        setWidthFormula('CabinetDepth');
-        setHeightFormula('CabinetHeight');
-      } else if (partType === 'Bottom') {
-        setWidthFormula('CabinetWidth - 2*T');
-        setHeightFormula('T');
-      } else {
-        setWidthFormula('');
-        setHeightFormula('');
+    if (partType) {
+      const filtered = formulas.filter(formula => 
+        formula.partTypes && formula.partTypes.includes(partType)
+      );
+      setFilteredFormulas(filtered);
+    } else {
+      setFilteredFormulas([]);
+    }
+  }, [partType, formulas]);
+
+  // Apply selected formula
+  useEffect(() => {
+    if (selectedFormula) {
+      const formula = formulas.find(f => f.name === selectedFormula);
+      if (formula) {
+        setWidthFormula(formula.formulaW);
+        setHeightFormula(formula.formulaH);
       }
     }
-  }, [partType, initialValues]);
+  }, [selectedFormula, formulas]);
 
   const handleCheckbox = (edge: keyof typeof defaultEdgeBanding) => {
     setEdgeBanding((prev) => ({ ...prev, [edge]: !prev[edge] }));
@@ -186,6 +217,30 @@ const CabinetPartModal: React.FC<CabinetPartModalProps> = ({
               ))}
             </div>
           </div>
+          
+          {/* Formula Dropdown */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Linked Formula</label>
+            <select
+              className="w-full border rounded px-3 py-2 mb-2"
+              value={selectedFormula}
+              onChange={e => setSelectedFormula(e.target.value)}
+              disabled={filteredFormulas.length === 0}
+            >
+              <option value="">Select a formula...</option>
+              {filteredFormulas.map((formula) => (
+                <option key={formula.name} value={formula.name}>
+                  {formula.name} [W: {formula.formulaW}, H: {formula.formulaH}]
+                </option>
+              ))}
+            </select>
+            {filteredFormulas.length === 0 && partType && (
+              <p className="text-sm text-yellow-600 mb-2">
+                No formulas linked to this part type. Add formulas in Settings.
+              </p>
+            )}
+          </div>
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Width Formula</label>
             <input
@@ -224,4 +279,4 @@ const CabinetPartModal: React.FC<CabinetPartModalProps> = ({
   );
 };
 
-export default CabinetPartModal; 
+export default CabinetPartModal;

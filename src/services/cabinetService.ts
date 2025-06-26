@@ -6,6 +6,7 @@ export type Formula = {
   formulaH: string;
   formulaW: string;
   partTypes: string[];
+  description?: string;
 };
 
 async function fetchJson(url: string, options?: RequestInit) {

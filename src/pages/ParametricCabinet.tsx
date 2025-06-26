@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Settings } from 'lucide-react';
 import CabinetPartModal from './CabinetPartModal';
 import CabinetDropdownSettingsModal from './CabinetDropdownSettingsModal';
+import { cabinetService, Formula } from '../services/cabinetService';
 
 interface CabinetPart {
   id: number;
@@ -20,17 +21,11 @@ interface CabinetPart {
   heightFormula: string;
 }
 
-interface Formula {
-  id: number;
-  name: string;
-  formula: string;
-  description?: string;
-}
-
 const ParametricCabinet: React.FC = () => {
   const [cabinetParts, setCabinetParts] = useState<CabinetPart[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [editingPart, setEditingPart] = useState<CabinetPart | null>(null);
 
   // Dropdown state (admin-configurable)
   const [partTypes, setPartTypes] = useState<string[]>(['Side Panel', 'Bottom', 'Back', 'Door', 'Shelf']);
@@ -40,22 +35,83 @@ const ParametricCabinet: React.FC = () => {
   const [accessories, setAccessories] = useState<string[]>(['Hinges', 'Drawer Slides', 'Handles', 'Shelf Pins']);
   const [edgeTypes, setEdgeTypes] = useState<string[]>(['PVC', 'ABS', 'Wood Veneer', 'Melamine']);
   const [formulas, setFormulas] = useState<Formula[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load all dropdown data on component mount
+  useEffect(() => {
+    loadAllData();
+  }, []);
+
+  const loadAllData = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Load all data in parallel
+      const results = await Promise.allSettled([
+        cabinetService.getDropdown('part-types'),
+        cabinetService.getDropdown('material-types'),
+        cabinetService.getDropdown('material-thicknesses'),
+        cabinetService.getDropdown('edge-thicknesses'),
+        cabinetService.getDropdown('edge-types'),
+        cabinetService.getDropdown('accessories'),
+        cabinetService.getFormulas(),
+      ]);
+      
+      // Process results and handle any errors
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          switch (index) {
+            case 0: setPartTypes(result.value); break;
+            case 1: setMaterialTypes(result.value); break;
+            case 2: setMaterialThicknesses(result.value); break;
+            case 3: setEdgeThicknesses(result.value); break;
+            case 4: setEdgeTypes(result.value); break;
+            case 5: setAccessories(result.value); break;
+            case 6: setFormulas(result.value); break;
+          }
+        } else {
+          console.error(`Failed to load data for index ${index}:`, result.reason);
+        }
+      });
+    } catch (e: any) {
+      setError(e.message || 'Failed to load data');
+      console.error('Error loading data:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAddPart = () => {
+    setEditingPart(null);
     setShowAddModal(true);
   };
 
   const handleSavePart = (partData: Omit<CabinetPart, 'id'>) => {
-    const newPart: CabinetPart = {
-      ...partData,
-      id: Date.now() // Simple ID generation for demo
-    };
-    setCabinetParts(prev => [...prev, newPart]);
+    if (editingPart) {
+      // Update existing part
+      const updatedPart = {
+        ...editingPart,
+        ...partData
+      };
+      setCabinetParts(prev => prev.map(part => part.id === editingPart.id ? updatedPart : part));
+    } else {
+      // Add new part
+      const newPart: CabinetPart = {
+        ...partData,
+        id: Date.now() // Simple ID generation for demo
+      };
+      setCabinetParts(prev => [...prev, newPart]);
+    }
   };
 
   const handleEditPart = (id: number) => {
-    // TODO: Implement edit functionality
-    console.log('Edit part:', id);
+    const part = cabinetParts.find(part => part.id === id);
+    if (part) {
+      setEditingPart(part);
+      setShowAddModal(true);
+    }
   };
 
   const handleDeletePart = (id: number) => {
@@ -64,6 +120,16 @@ const ParametricCabinet: React.FC = () => {
 
   const handleOpenSettings = () => {
     setShowSettings(true);
+  };
+
+  // Find formula name for a part
+  const getFormulaName = (part: CabinetPart) => {
+    const matchingFormula = formulas.find(f => 
+      f.formulaW === part.widthFormula && 
+      f.formulaH === part.heightFormula && 
+      f.partTypes.includes(part.partType)
+    );
+    return matchingFormula ? matchingFormula.name : 'Custom';
   };
 
   return (
@@ -91,6 +157,13 @@ const ParametricCabinet: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Error message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+          {error}
+        </div>
+      )}
 
       {/* Cabinet Parts Table */}
       <div className="bg-white rounded-lg shadow">
@@ -133,6 +206,9 @@ const ParametricCabinet: React.FC = () => {
                     Edge Banding
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Formula
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Width Formula
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -171,6 +247,11 @@ const ParametricCabinet: React.FC = () => {
                         )}
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">
+                        {getFormulaName(part)}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                       {part.widthFormula}
                     </td>
@@ -204,8 +285,12 @@ const ParametricCabinet: React.FC = () => {
       {/* CabinetPartModal */}
       <CabinetPartModal
         isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
+        onClose={() => {
+          setShowAddModal(false);
+          setEditingPart(null);
+        }}
         onSave={handleSavePart}
+        initialValues={editingPart}
         partTypes={partTypes}
         materialTypes={materialTypes}
         materialThicknesses={materialThicknesses}
