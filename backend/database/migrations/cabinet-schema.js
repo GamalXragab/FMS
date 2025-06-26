@@ -1,48 +1,58 @@
-export async function up(db) {
+import { runStatement } from '../connection.js';
+
+export const createCabinetSchema = async () => {
   // Cabinet Part Types
-  await db.exec(`
+  await runStatement(`
     CREATE TABLE IF NOT EXISTS cabinet_part_types (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
       default_width_formula TEXT,
       default_height_formula TEXT
-    );
+    )
   `);
 
   // Material Types
-  await db.exec(`
+  await runStatement(`
     CREATE TABLE IF NOT EXISTS cabinet_material_types (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE
-    );
+    )
   `);
 
   // Material Thicknesses
-  await db.exec(`
+  await runStatement(`
     CREATE TABLE IF NOT EXISTS cabinet_material_thicknesses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       value TEXT NOT NULL UNIQUE
-    );
+    )
   `);
 
   // Edge Thicknesses
-  await db.exec(`
+  await runStatement(`
     CREATE TABLE IF NOT EXISTS cabinet_edge_thicknesses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       value TEXT NOT NULL UNIQUE
-    );
+    )
+  `);
+
+  // Edge Types
+  await runStatement(`
+    CREATE TABLE IF NOT EXISTS cabinet_edge_types (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE
+    )
   `);
 
   // Accessories
-  await db.exec(`
+  await runStatement(`
     CREATE TABLE IF NOT EXISTS cabinet_accessories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE
-    );
+    )
   `);
 
   // Cabinet Parts
-  await db.exec(`
+  await runStatement(`
     CREATE TABLE IF NOT EXISTS cabinet_parts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       part_type_id INTEGER NOT NULL,
@@ -59,15 +69,18 @@ export async function up(db) {
       FOREIGN KEY (material_type_id) REFERENCES cabinet_material_types(id),
       FOREIGN KEY (material_thickness_id) REFERENCES cabinet_material_thicknesses(id),
       FOREIGN KEY (edge_thickness_id) REFERENCES cabinet_edge_thicknesses(id)
-    );
+    )
   `);
-}
 
-export async function down(db) {
-  await db.exec('DROP TABLE IF EXISTS cabinet_parts;');
-  await db.exec('DROP TABLE IF EXISTS cabinet_accessories;');
-  await db.exec('DROP TABLE IF EXISTS cabinet_edge_thicknesses;');
-  await db.exec('DROP TABLE IF EXISTS cabinet_material_thicknesses;');
-  await db.exec('DROP TABLE IF EXISTS cabinet_material_types;');
-  await db.exec('DROP TABLE IF EXISTS cabinet_part_types;');
-} 
+  // Cabinet Formulas
+  await runStatement(`
+    CREATE TABLE IF NOT EXISTS cabinet_formulas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      formula TEXT NOT NULL,
+      description TEXT
+    )
+  `);
+
+  console.log('Cabinet schema tables created successfully');
+};
